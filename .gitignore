@@ -171,3 +171,7 @@ data/**/.cache
 
 # Environment (keep .env.example, ignore actual .env)
 .env
+
+# Test files
+test_quick.py
+test_*.py

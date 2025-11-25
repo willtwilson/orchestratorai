@@ -26,10 +26,28 @@ from .planning.merge_recommender import MergeRecommender
 class Orchestrator:
     """Orchestrates the automated issue resolution process."""
 
-    def __init__(self, dashboard: Dashboard):
+    def __init__(self, dashboard: Optional[Dashboard] = None):
         """Initialize the orchestrator with required clients."""
         print("[DEBUG] Initializing orchestrator...")
         self.dashboard = dashboard
+
+    def _log(self, message: str, level: str = "info"):
+        """Safely log to dashboard if available, otherwise print."""
+        if self.dashboard:
+            self.dashboard.log(message, level=level)
+        else:
+            prefix = {"info": "ℹ️", "success": "✅", "error": "❌", "warning": "⚠️"}.get(level, "")
+            print(f"{prefix} {message}")
+
+    def _update_active_issue(self, issue_number: int, status: str):
+        """Safely update dashboard if available."""
+        if self.dashboard:
+            self.dashboard.update_active_issue(issue_number, status)
+
+    def _mark_issue_completed(self, issue_number: int, pr_number: Optional[int], merged: bool):
+        """Safely mark issue as completed if dashboard available."""
+        if self.dashboard:
+            self.dashboard.mark_issue_completed(issue_number, pr_number, merged)
 
         # Safety settings
         self.dry_run = os.getenv("DRY_RUN", "false").lower() == "true"
@@ -141,12 +159,13 @@ class Orchestrator:
     def run(self):
         """Main orchestration loop."""
         print("[DEBUG] Starting dashboard...")
-        self.dashboard.start()
+        if self.dashboard:
+            self.dashboard.start()
         print("[DEBUG] Dashboard started!")
         
-        self.dashboard.log("🚀 OrchestratorAI started", level="success")
-        self.dashboard.log(f"Mode: {'AUTOPILOT' if self.autopilot_mode else 'MANUAL'}", level="info")
-        self.dashboard.log(f"Monitoring: {'ENABLED' if self.pr_monitoring_enabled else 'DISABLED'}", level="info")
+        self._log("🚀 OrchestratorAI started", level="success")
+        self._log(f"Mode: {'AUTOPILOT' if self.autopilot_mode else 'MANUAL'}", level="info")
+        self._log(f"Monitoring: {'ENABLED' if self.pr_monitoring_enabled else 'DISABLED'}", level="info")
 
         try:
             print("[DEBUG] Entering main loop...")
@@ -155,11 +174,12 @@ class Orchestrator:
             print("[DEBUG] First cycle completed.")
             
             # Keep dashboard visible for a moment
-            self.dashboard.log("✅ Cycle completed successfully", level="success")
+            self._log("✅ Cycle completed successfully", level="success")
             import time
             time.sleep(5)  # Show final state for 5 seconds
         finally:
-            self.dashboard.stop()
+            if self.dashboard:
+                self.dashboard.stop()
             print("[DEBUG] Dashboard stopped")
 
     def _process_cycle(self):
@@ -198,10 +218,14 @@ class Orchestrator:
 
         print("[DEBUG] Cycle complete!")
 
+    def process_issue(self, issue: Dict):
+        """Public method to process a single issue (for manual invocation)."""
+        self._process_issue(issue)
+
     def _process_issue(self, issue: Dict):
         """Process a single issue through the full pipeline."""
         issue_number = issue["number"]
-        self.dashboard.log(f"Processing issue #{issue_number}: {issue['title']}")
+        self._log(f"Processing issue #{issue_number}: {issue['title']}")
 
         try:
             # Mark as active
@@ -212,10 +236,10 @@ class Orchestrator:
             self._save_state()
             
             # Update dashboard
-            self.dashboard.update_active_issue(issue_number, "planning")
+            self._update_active_issue(issue_number, "planning")
 
             # Step 1: Research with Perplexity
-            self.dashboard.log(f"#{issue_number}: Researching context...", level="info")
+            self._log(f"#{issue_number}: Researching context...", level="info")
             print(f"\n[STEP 1] Researching with Perplexity...")
             context = self.perplexity.research(issue["title"], issue["body"])
 
@@ -227,7 +251,7 @@ class Orchestrator:
             print(f"{'='*60}\n")
 
             # Step 2: Planning with Claude
-            self.dashboard.log(f"#{issue_number}: Creating plan with Claude...", level="info")
+            self._log(f"#{issue_number}: Creating plan with Claude...", level="info")
             print(f"\n[STEP 2] Creating plan with Claude...")
             plan = self.claude.create_plan(issue, context)
 
@@ -242,8 +266,8 @@ class Orchestrator:
             # Step 3: Execution with Copilot
             self.state["active_issues"][issue_number]["status"] = "executing"
             self._save_state()
-            self.dashboard.update_active_issue(issue_number, "executing")
-            self.dashboard.log(f"#{issue_number}: Executing with Copilot...", level="info")
+            self._update_active_issue(issue_number, "executing")
+            self._log(f"#{issue_number}: Executing with Copilot...", level="info")
             print(f"\n[STEP 3] Executing with Copilot...")
             result = self.copilot.execute_plan(plan, issue_number)
 
@@ -259,8 +283,8 @@ class Orchestrator:
             # Step 4: Build verification
             self.state["active_issues"][issue_number]["status"] = "verifying"
             self._save_state()
-            self.dashboard.update_active_issue(issue_number, "verifying")
-            self.dashboard.log(f"#{issue_number}: Verifying build...", level="info")
+            self._update_active_issue(issue_number, "verifying")
+            self._log(f"#{issue_number}: Verifying build...", level="info")
             print(f"\n[STEP 4] Verifying build...")
 
             worktree_path = self.copilot.worktree_base / f"issue-{issue_number}"
@@ -293,7 +317,7 @@ class Orchestrator:
                 print(f"To cleanup: git worktree remove {worktree_path} --force")
                 print(f"{'='*60}\n")
 
-                self.dashboard.log(f"#{issue_number}: Build failed, worktree preserved", level="error")
+                self._log(f"#{issue_number}: Build failed, worktree preserved", level="error")
                 # Don't rollback yet - preserve for inspection
                 # self.copilot.rollback(issue_number)
                 self.github.add_comment(
@@ -317,7 +341,7 @@ class Orchestrator:
                 
                 if pr_result['success']:
                     print(f"\n🎉 SUCCESS! PR created: {pr_result['pr_url']}")
-                    self.dashboard.log(f"#{issue_number}: PR #{pr_result['pr_number']} created", level="success")
+                    self._log(f"#{issue_number}: PR #{pr_result['pr_number']} created", level="success")
                     
                     # Step 6: Monitor PR reviews and evaluate merge readiness
                     if self.pr_monitoring_enabled and pr_result.get('pr_number'):
@@ -329,8 +353,8 @@ class Orchestrator:
                         self._cleanup_worktree(worktree_path)
                     
                     self._mark_issue_completed(issue_number)
-                    self.dashboard.mark_issue_completed(issue_number, pr_result['pr_number'], merged=False)
-                    self.dashboard.log(f"#{issue_number}: Completed successfully with PR #{pr_result['pr_number']}", level="success")
+                    self._mark_issue_completed(issue_number, pr_result['pr_number'], merged=False)
+                    self._log(f"#{issue_number}: Completed successfully with PR #{pr_result['pr_number']}", level="success")
                 else:
                     print(f"\n⚠️ Build passed but PR creation failed: {pr_result.get('error')}")
                     self.github.add_comment(
@@ -340,7 +364,7 @@ class Orchestrator:
                     self._mark_issue_failed(issue_number)
             else:
                 # Old manual flow
-                self.dashboard.log(f"#{issue_number}: Build passed. Manual PR creation required.")
+                self._log(f"#{issue_number}: Build passed. Manual PR creation required.")
                 self.github.add_comment(
                     issue_number,
                     f"Implementation complete!\n\n{result['summary']}\n\nBranch: {result.get('branch')}"
@@ -348,7 +372,7 @@ class Orchestrator:
                 self._mark_issue_completed(issue_number)
 
         except Exception as e:
-            self.dashboard.log(f"#{issue_number}: Error - {str(e)}", level="error")
+            self._log(f"#{issue_number}: Error - {str(e)}", level="error")
             self.github.add_comment(
                 issue_number,
                 f"Error during processing: {str(e)}"
@@ -569,14 +593,14 @@ You can review the PR and merge when ready!"""
                 self._save_state()
             
             # Update dashboard
-            self.dashboard.update_active_issue(issue_number, "waiting_reviews", {"pr_number": pr_number})
+            self._update_active_issue(issue_number, "waiting_reviews", {"pr_number": pr_number})
             
             # Wait for reviews to complete
             print("[MONITOR] Waiting for Copilot and Perplexity reviews...")
             print(f"           Timeout: {self.perplexity_timeout_minutes} minutes")
             print(f"           Poll interval: {self.pr_poll_interval_seconds} seconds")
             
-            self.dashboard.log(f"PR #{pr_number}: Waiting for reviews (timeout: {self.perplexity_timeout_minutes}min)", level="info")
+            self._log(f"PR #{pr_number}: Waiting for reviews (timeout: {self.perplexity_timeout_minutes}min)", level="info")
             
             review_status = self.pr_monitor.wait_for_reviews(
                 pr_number=pr_number,
@@ -597,13 +621,13 @@ You can review the PR and merge when ready!"""
             # Handle Perplexity failures gracefully
             if review_status.perplexity_failed:
                 print("⚠️  Perplexity workflow failed, proceeding with Copilot review only")
-                self.dashboard.log(
+                self._log(
                     f"PR #{pr_number}: Perplexity review failed, continuing with Copilot only",
                     level="warning"
                 )
             elif review_status.perplexity_timeout:
                 print("⚠️  Perplexity review timed out, proceeding with Copilot review only")
-                self.dashboard.log(
+                self._log(
                     f"PR #{pr_number}: Perplexity review timed out after {self.perplexity_timeout_minutes}min",
                     level="warning"
                 )
@@ -615,7 +639,7 @@ You can review the PR and merge when ready!"""
             
             # Parse review comments
             print("[PARSER] Parsing review comments...")
-            self.dashboard.log(f"PR #{pr_number}: Parsing {len(comments)} review comments", level="info")
+            self._log(f"PR #{pr_number}: Parsing {len(comments)} review comments", level="info")
             comments = self.pr_monitor.get_pr_comments(pr_number)
             review_items = self.review_parser.parse_all_comments(comments)
             
@@ -647,7 +671,7 @@ You can review the PR and merge when ready!"""
                 )
                 if deferred_issue_num:
                     print(f"[OK] Created deferred issue #{deferred_issue_num}")
-                    self.dashboard.log(f"Created deferred issue #{deferred_issue_num} from PR #{pr_number}")
+                    self._log(f"Created deferred issue #{deferred_issue_num} from PR #{pr_number}")
             
             # Evaluate merge readiness
             print("\n[RECOMMENDER] Evaluating merge readiness...")
@@ -679,11 +703,11 @@ You can review the PR and merge when ready!"""
             if decision.ready_to_merge:
                 if decision.autopilot_recommended and self.autopilot_mode:
                     print("\n[AUTOPILOT] PR is ready - auto-merging...")
-                    self.dashboard.log(f"PR #{pr_number}: Auto-merging (autopilot mode)", level="success")
+                    self._log(f"PR #{pr_number}: Auto-merging (autopilot mode)", level="success")
                     self._auto_merge_pr(pr_number, issue_number)
                 elif self.auto_merge_ready_prs:
                     print("\n[AUTO-MERGE] PR is ready - merging...")
-                    self.dashboard.log(f"PR #{pr_number}: Auto-merging", level="success")
+                    self._log(f"PR #{pr_number}: Auto-merging", level="success")
                     self._auto_merge_pr(pr_number, issue_number)
                 else:
                     print("\n[MANUAL] PR is ready for manual merge")
@@ -691,7 +715,7 @@ You can review the PR and merge when ready!"""
                     for rec in decision.recommendations:
                         print(f"         • {rec}")
                     
-                    self.dashboard.log(f"PR #{pr_number}: Ready for manual merge", level="success")
+                    self._log(f"PR #{pr_number}: Ready for manual merge", level="success")
                     
                     # Post merge-ready comment to PR
                     self._post_merge_ready_comment(pr_number, decision)
@@ -700,12 +724,12 @@ You can review the PR and merge when ready!"""
                     if str(issue_number) in self.state["active_issues"]:
                         self.state["active_issues"][str(issue_number)]["status"] = "ready_to_merge"
                         self._save_state()
-                    self.dashboard.update_active_issue(issue_number, "ready_to_merge")
+                    self._update_active_issue(issue_number, "ready_to_merge")
             else:
                 print(f"\n[BLOCKED] PR not ready: {decision.reason}")
                 print(f"          Blocking items: {len(decision.blocking_items)}")
                 
-                self.dashboard.log(f"PR #{pr_number}: Blocked - {decision.reason}", level="warning")
+                self._log(f"PR #{pr_number}: Blocked - {decision.reason}", level="warning")
                 
                 # Post blocking items to PR
                 self._post_review_summary_comment(pr_number, decision, plan)
@@ -714,11 +738,11 @@ You can review the PR and merge when ready!"""
                 if str(issue_number) in self.state["active_issues"]:
                     self.state["active_issues"][str(issue_number)]["status"] = "blocked"
                     self._save_state()
-                self.dashboard.update_active_issue(issue_number, "blocked")
+                self._update_active_issue(issue_number, "blocked")
         
         except Exception as e:
             print(f"\n❌ Error during PR monitoring: {e}")
-            self.dashboard.log(f"PR #{pr_number}: Monitoring error - {str(e)}", level="error")
+            self._log(f"PR #{pr_number}: Monitoring error - {str(e)}", level="error")
             
             # Don't fail the whole process - PR is still created
             if str(issue_number) in self.state["active_issues"]:
@@ -749,7 +773,7 @@ You can review the PR and merge when ready!"""
             
             if merge_result.returncode != 0:
                 print(f"❌ Auto-merge failed: {merge_result.stderr}")
-                self.dashboard.log(f"PR #{pr_number}: Auto-merge failed - {merge_result.stderr}", level="error")
+                self._log(f"PR #{pr_number}: Auto-merge failed - {merge_result.stderr}", level="error")
                 
                 # Post comment about failure
                 subprocess.run([
@@ -761,11 +785,11 @@ You can review the PR and merge when ready!"""
                 return False
             
             print(f"✅ PR #{pr_number} auto-merged successfully")
-            self.dashboard.log(f"PR #{pr_number}: Auto-merged and proceeding to next task", level="success")
+            self._log(f"PR #{pr_number}: Auto-merged and proceeding to next task", level="success")
             
             # Mark issue as completed
             self._mark_issue_completed(issue_number)
-            self.dashboard.mark_issue_completed(issue_number, pr_number, merged=True)
+            self._mark_issue_completed(issue_number, pr_number, merged=True)
             self.dashboard.clear_pr_status(pr_number)
             
             # Post completion comment
@@ -779,7 +803,7 @@ You can review the PR and merge when ready!"""
             
         except Exception as e:
             print(f"❌ Error during auto-merge: {e}")
-            self.dashboard.log(f"PR #{pr_number}: Auto-merge error - {str(e)}", level="error")
+            self._log(f"PR #{pr_number}: Auto-merge error - {str(e)}", level="error")
             return False
     
     def _post_merge_ready_comment(self, pr_number: int, decision):
