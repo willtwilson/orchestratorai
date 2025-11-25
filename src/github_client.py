@@ -55,6 +55,14 @@ class GitHubClient:
 
         return issues
 
+    def get_ai_ready_issues(self) -> List[Dict]:
+        """Fetch all issues with status:ai-ready label.
+        
+        Returns:
+            List of AI-ready issue dictionaries
+        """
+        return self.get_open_issues(labels=["status:ai-ready"])
+
     def get_issue(self, issue_number: int) -> Dict:
         """Fetch a specific issue.
 

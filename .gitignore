@@ -156,9 +156,18 @@ data/.copilot_prompt.txt
 .claude_prompt.txt
 *_prompt.txt
 **/*_prompt.txt
+**/.*prompt*.txt
+**/*.prompt.txt
 
 # Backup directories
 data/backups/
+
+# Cache and temporary files
+data/**/.clauderc.json
+data/**/.mcp-servers.json
+data/**/*.cache
+data/**/temp_*
+data/**/.cache
 
 # Environment (keep .env.example, ignore actual .env)
 .env

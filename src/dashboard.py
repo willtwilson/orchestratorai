@@ -47,7 +47,11 @@ class Dashboard:
     def _setup_layout(self):
         """Setup compact dashboard layout (fits in half screen)."""
         self.layout.split_column(
+<<<<<<< HEAD
+            Layout(name="header", size=2),
+=======
             Layout(name="header", size=3),
+>>>>>>> master
             Layout(name="main", size=14),
             Layout(name="footer", size=6)
         )
@@ -76,7 +80,8 @@ class Dashboard:
             console=self.console,
             refresh_per_second=2,  # Faster refresh to prevent bounce
             screen=False,
-            vertical_overflow="crop"  # Crop instead of scroll
+            vertical_overflow="crop",  # Crop instead of scroll
+            transient=False  # No bouncing on updates
         )
         self.live.start()
 
@@ -212,17 +217,15 @@ class Dashboard:
     def _create_header(self) -> Panel:
         """Create the header panel with title and time."""
         header_text = Text()
-        header_text.append("🤖 ", style="bold cyan")
-        header_text.append("OrchestratorAI", style="bold cyan")
-        header_text.append(" - ", style="dim")
-        header_text.append("Autonomous Development Pipeline", style="bold white")
+        header_text.append("🤖 OrchestratorAI", style="bold cyan")
         header_text.append(" | ", style="dim")
-        header_text.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), style="yellow")
+        header_text.append(datetime.now().strftime("%H:%M:%S"), style="yellow")
 
         return Panel(
             Align.center(header_text),
-            box=box.DOUBLE,
-            style="cyan"
+            box=box.ROUNDED,
+            style="cyan",
+            padding=(0, 0)
         )
     
     def _create_queued_panel(self) -> Panel:
