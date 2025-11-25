@@ -31,7 +31,7 @@ class Dashboard:
         self.completed_issues = {}
         self.pr_statuses = {}  # PR number -> review/merge status
         self.logs = []
-        self.max_logs = 15
+        self.max_logs = 6  # Compact: show only last 6 logs
         self.lock = Lock()
         
         # Statistics
@@ -45,25 +45,25 @@ class Dashboard:
         self._setup_layout()
 
     def _setup_layout(self):
-        """Setup the dashboard layout with PR monitoring sections."""
+        """Setup compact dashboard layout (fits in half screen)."""
         self.layout.split_column(
             Layout(name="header", size=3),
-            Layout(name="main"),
-            Layout(name="footer", size=12)
+            Layout(name="main", size=20),
+            Layout(name="footer", size=8)
         )
 
         self.layout["main"].split_row(
             Layout(name="left"),
-            Layout(name="right", size=50)
+            Layout(name="right")
         )
         
         self.layout["left"].split_column(
-            Layout(name="queued", size=10),
+            Layout(name="stats", size=8),
             Layout(name="active")
         )
         
         self.layout["right"].split_column(
-            Layout(name="stats", size=8),
+            Layout(name="queued", size=8),
             Layout(name="pr_status")
         )
         
@@ -74,7 +74,7 @@ class Dashboard:
         self.live = Live(
             self.layout,
             console=self.console,
-            refresh_per_second=2,  # Reduced to avoid flickering
+            refresh_per_second=1,  # Smooth updates without bounce
             screen=False,
             vertical_overflow="visible"
         )
@@ -226,83 +226,70 @@ class Dashboard:
         )
     
     def _create_queued_panel(self) -> Panel:
-        """Create the queued issues panel."""
+        """Create compact queued issues panel."""
         # Filter issues that are not active
         active_nums = set(self.active_issues.keys())
-        queued = [i for i in self.issues if i["number"] not in active_nums][:5]
+        queued = [i for i in self.issues if i["number"] not in active_nums][:3]
         
         if not queued:
-            content = Text("No issues queued", style="dim italic")
-            return Panel(content, title="📋 Queued Issues (0)", border_style="blue", box=box.ROUNDED)
+            content = Text("None", style="dim")
+            return Panel(content, title="📋 Queued (0)", border_style="blue", box=box.ROUNDED)
         
-        table = Table(box=box.SIMPLE_HEAD, show_header=False, padding=(0, 1))
-        table.add_column("#", style="cyan", width=6)
+        table = Table(box=None, show_header=False, padding=(0, 1))
+        table.add_column("#", style="cyan", width=5)
         table.add_column("Title", style="white")
         
         for issue in queued:
             table.add_row(
                 f"#{issue['number']}",
-                issue["title"][:45] + ("..." if len(issue["title"]) > 45 else "")
+                issue["title"][:30] + ("..." if len(issue["title"]) > 30 else "")
             )
         
         return Panel(
             table,
-            title=f"📋 Queued Issues ({len(queued)})",
+            title=f"📋 Queued ({len(queued)})",
             border_style="blue",
-            box=box.ROUNDED
+            box=box.ROUNDED,
+            padding=(0, 1)
         )
     
     def _create_active_panel(self) -> Panel:
-        """Create the active issues panel with detailed status."""
+        """Create compact active issues panel."""
         if not self.active_issues:
-            content = Text("No active issues", style="dim italic")
-            return Panel(content, title="⚙️  Active Issues (0)", border_style="green", box=box.ROUNDED)
+            content = Text("None", style="dim")
+            return Panel(content, title="⚙️ Active (0)", border_style="green", box=box.ROUNDED)
         
-        table = Table(box=box.SIMPLE_HEAD, show_header=True, padding=(0, 1))
-        table.add_column("#", style="cyan bold", width=6)
-        table.add_column("Status", style="white", width=18)
-        table.add_column("Duration", style="yellow", width=10)
-        table.add_column("Details", style="dim")
+        table = Table(box=None, show_header=False, padding=(0, 1))
+        table.add_column("#", style="cyan bold", width=5)
+        table.add_column("Status", style="white", width=15)
+        table.add_column("Time", style="yellow", width=6)
         
         for issue_num, issue_data in self.active_issues.items():
             status = issue_data["status"]
             started = issue_data["started_at"]
             duration = (datetime.now() - started).total_seconds()
             
-            # Format duration
+            # Format duration (compact)
             if duration < 60:
                 duration_str = f"{int(duration)}s"
-            elif duration < 3600:
-                duration_str = f"{int(duration/60)}m {int(duration%60)}s"
             else:
-                duration_str = f"{int(duration/3600)}h {int((duration%3600)/60)}m"
+                duration_str = f"{int(duration/60)}m"
             
-            # Status with icon
-            status_display = self._get_status_display(status)
-            
-            # Details
-            details = issue_data.get("details", {})
-            detail_str = ""
-            if status == "waiting_reviews":
-                pr_num = details.get("pr_number")
-                detail_str = f"PR #{pr_num}" if pr_num else ""
-            elif status == "verifying":
-                detail_str = "Running build..."
-            elif status == "executing":
-                detail_str = "Generating code..."
+            # Status with icon (compact)
+            status_display = self._get_status_display_compact(status)
             
             table.add_row(
                 f"#{issue_num}",
                 status_display,
-                duration_str,
-                detail_str
+                duration_str
             )
         
         return Panel(
             table,
-            title=f"⚙️  Active Issues ({len(self.active_issues)})",
+            title=f"⚙️ Active ({len(self.active_issues)})",
             border_style="green",
-            box=box.ROUNDED
+            box=box.ROUNDED,
+            padding=(0, 1)
         )
     
     def _get_status_display(self, status: str) -> str:
@@ -324,82 +311,91 @@ class Dashboard:
             "monitoring_failed": "[red]❌ Mon. Failed[/red]"
         }
         return status_map.get(status, f"[dim]{status}[/dim]")
+    
+    def _get_status_display_compact(self, status: str) -> str:
+        """Get compact status display.
+        
+        Args:
+            status: Status string
+            
+        Returns:
+            Compact status string with Rich markup
+        """
+        status_map = {
+            "planning": "[blue]🔍 Plan[/blue]",
+            "executing": "[yellow]⚡ Code[/yellow]",
+            "verifying": "[magenta]🔨 Build[/magenta]",
+            "waiting_reviews": "[cyan]👀 Review[/cyan]",
+            "blocked": "[red]🚫 Block[/red]",
+            "ready_to_merge": "[green]✅ Ready[/green]",
+            "monitoring_failed": "[red]❌ Failed[/red]"
+        }
+        return status_map.get(status, f"[dim]{status[:10]}[/dim]")
 
     def _create_stats_panel(self) -> Panel:
-        """Create the statistics panel with enhanced metrics."""
-        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
-        table.add_column("Metric", style="cyan bold")
-        table.add_column("Value", style="white bold", justify="right")
+        """Create compact statistics panel."""
+        table = Table(box=None, show_header=False, padding=(0, 1))
+        table.add_column("Metric", style="cyan bold", width=10)
+        table.add_column("Value", style="white bold", justify="right", width=6)
 
         # Queued
         active_nums = set(self.active_issues.keys())
         queued_count = len([i for i in self.issues if i["number"] not in active_nums])
-        table.add_row("📋 Queued", str(queued_count))
+        table.add_row("📋 Queue", str(queued_count))
         
         # Active
-        table.add_row("⚙️  Active", str(len(self.active_issues)))
+        table.add_row("⚙️ Active", str(len(self.active_issues)))
         
         # Completed
-        table.add_row("✅ Completed", f"[green]{self.stats['total_processed']}[/green]")
+        table.add_row("✅ Done", f"[green]{self.stats['total_processed']}[/green]")
         
         # Failed
         if self.stats["total_failed"] > 0:
-            table.add_row("❌ Failed", f"[red]{self.stats['total_failed']}[/red]")
+            table.add_row("❌ Fail", f"[red]{self.stats['total_failed']}[/red]")
         
         # Merged
         if self.stats["total_merged"] > 0:
-            table.add_row("🚀 Auto-Merged", f"[green bold]{self.stats['total_merged']}[/green bold]")
-        
-        # Avg time
-        if self.stats["avg_processing_time"] > 0:
-            avg_min = int(self.stats["avg_processing_time"] / 60)
-            avg_sec = int(self.stats["avg_processing_time"] % 60)
-            table.add_row("⏱️  Avg Time", f"{avg_min}m {avg_sec}s")
+            table.add_row("🚀 Merge", f"[green]{self.stats['total_merged']}[/green]")
 
         return Panel(
             table,
-            title="📊 Statistics",
+            title="📊 Stats",
             border_style="yellow",
-            box=box.ROUNDED
+            box=box.ROUNDED,
+            padding=(0, 1)
         )
     
     def _create_pr_status_panel(self) -> Panel:
-        """Create the PR status panel showing review/merge status."""
+        """Create compact PR status panel."""
         if not self.pr_statuses:
-            content = Text("No PRs being monitored", style="dim italic")
-            return Panel(content, title="🔍 PR Monitoring (0)", border_style="magenta", box=box.ROUNDED)
+            content = Text("None", style="dim")
+            return Panel(content, title="🔍 PRs (0)", border_style="magenta", box=box.ROUNDED)
         
-        table = Table(box=box.SIMPLE_HEAD, show_header=True, padding=(0, 1))
-        table.add_column("PR", style="cyan bold", width=7)
-        table.add_column("Reviews", style="white", width=12)
+        table = Table(box=None, show_header=False, padding=(0, 1))
+        table.add_column("PR", style="cyan bold", width=5)
+        table.add_column("Rev", style="white", width=5)
         table.add_column("Status", style="white")
         
-        for pr_num, pr_data in sorted(self.pr_statuses.items(), reverse=True):
-            # Review status icons
+        for pr_num, pr_data in sorted(self.pr_statuses.items(), reverse=True)[:3]:
+            # Review status icons (compact)
             review_status = pr_data.get("review_status", {})
-            copilot = "✅" if review_status.get("copilot_complete") else "⏳"
-            perplexity = "✅" if review_status.get("perplexity_complete") else (
-                "⚠️" if review_status.get("perplexity_failed") else "⏳"
+            copilot = "✓" if review_status.get("copilot_complete") else "⏳"
+            perplexity = "✓" if review_status.get("perplexity_complete") else (
+                "⚠" if review_status.get("perplexity_failed") else "⏳"
             )
-            reviews = f"{copilot} {perplexity}"
+            reviews = f"{copilot}{perplexity}"
             
-            # Merge decision
+            # Merge decision (compact)
             decision = pr_data.get("merge_decision", {})
             readiness = decision.get("readiness", "unknown")
             
             if readiness == "ready":
-                status_str = "[green bold]✓ Ready[/green bold]"
+                status_str = "[green]✓[/green]"
             elif readiness == "blocked":
-                blocking_count = len(decision.get("blocking_items", []))
-                status_str = f"[red]🚫 Blocked ({blocking_count})[/red]"
-            elif readiness == "waiting_reviews":
-                status_str = "[yellow]⏳ Reviews[/yellow]"
-            elif readiness == "waiting_ci":
-                status_str = "[yellow]⏳ CI[/yellow]"
-            elif readiness == "waiting_approval":
-                status_str = "[yellow]⏳ Approval[/yellow]"
+                count = len(decision.get("blocking_items", []))
+                status_str = f"[red]🚫{count}[/red]"
             else:
-                status_str = f"[dim]{readiness}[/dim]"
+                status_str = "[yellow]⏳[/yellow]"
             
             table.add_row(
                 f"#{pr_num}",
@@ -409,29 +405,31 @@ class Dashboard:
         
         return Panel(
             table,
-            title=f"🔍 PR Monitoring ({len(self.pr_statuses)})",
+            title=f"🔍 PRs ({len(self.pr_statuses)})",
             border_style="magenta",
-            box=box.ROUNDED
+            box=box.ROUNDED,
+            padding=(0, 1)
         )
 
     def _create_logs_panel(self) -> Panel:
-        """Create the logs panel with colored output."""
+        """Create compact logs panel."""
         if not self.logs:
-            content = Text("No activity yet...", style="dim italic")
+            content = Text("No activity yet", style="dim")
             return Panel(
                 content,
-                title="📜 Activity Log (0)",
+                title="📜 Log (0)",
                 border_style="dim",
-                box=box.ROUNDED
+                box=box.ROUNDED,
+                padding=(0, 1)
             )
         
         log_text = Text()
 
-        for log in self.logs[-10:]:  # Show last 10 logs
-            # Icon based on level
+        for log in self.logs[-self.max_logs:]:
+            # Icon based on level (compact)
             icon_map = {
-                "info": "ℹ️",
-                "warning": "⚠️",
+                "info": "ℹ",
+                "warning": "⚠",
                 "error": "❌",
                 "success": "✅"
             }
@@ -444,15 +442,21 @@ class Dashboard:
                 "success": "green"
             }.get(log["level"], "white")
 
+            # Compact log format
             log_text.append(f"{icon} ", style="bold")
-            log_text.append(f"[{log['timestamp']}] ", style="dim")
-            log_text.append(f"{log['message']}\n", style=style)
+            log_text.append(f"{log['timestamp']} ", style="dim")
+            # Truncate long messages
+            msg = log['message']
+            if len(msg) > 60:
+                msg = msg[:57] + "..."
+            log_text.append(f"{msg}\n", style=style)
 
         return Panel(
             log_text,
-            title=f"📜 Activity Log ({len(self.logs)})",
+            title=f"📜 Log ({len(self.logs)})",
             border_style="white",
-            box=box.ROUNDED
+            box=box.ROUNDED,
+            padding=(0, 1)
         )
     
     def clear_pr_status(self, pr_number: int):

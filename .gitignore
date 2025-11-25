@@ -146,6 +146,14 @@ cython_debug/
 data/state.json
 data/generated_code/
 data/.claude_planning_prompt.txt
+data/.copilot_prompt.txt
 .worktrees/
 *.log
 .claude/
+
+# Temporary prompt files
+.copilot_prompt.txt
+*_prompt.txt
+
+# Environment (keep .env.example, ignore actual .env)
+.env
