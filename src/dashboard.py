@@ -47,7 +47,11 @@ class Dashboard:
     def _setup_layout(self):
         """Setup compact dashboard layout (fits in half screen)."""
         self.layout.split_column(
+<<<<<<< HEAD
             Layout(name="header", size=2),
+=======
+            Layout(name="header", size=3),
+>>>>>>> master
             Layout(name="main", size=14),
             Layout(name="footer", size=6)
         )
@@ -74,9 +78,9 @@ class Dashboard:
         self.live = Live(
             self.layout,
             console=self.console,
-            refresh_per_second=2,  # Smooth updates, no bounce
+            refresh_per_second=2,  # Faster refresh to prevent bounce
             screen=False,
-            vertical_overflow="visible",
+            vertical_overflow="crop",  # Crop instead of scroll
             transient=False  # No bouncing on updates
         )
         self.live.start()

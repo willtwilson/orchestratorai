@@ -29,9 +29,12 @@ def load_environment():
     required_vars = [
         "GITHUB_TOKEN",
         "GITHUB_REPO",
-        "ANTHROPIC_API_KEY",
         "PERPLEXITY_API_KEY",
     ]
+    
+    # ANTHROPIC_API_KEY only required if USE_CLAUDE_API=true
+    if os.getenv("USE_CLAUDE_API", "false").lower() == "true":
+        required_vars.append("ANTHROPIC_API_KEY")
 
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
