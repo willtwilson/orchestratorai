@@ -31,7 +31,7 @@ class Dashboard:
         self.completed_issues = {}
         self.pr_statuses = {}  # PR number -> review/merge status
         self.logs = []
-        self.max_logs = 6  # Compact: show only last 6 logs
+        self.max_logs = 4  # Compact: show only last 4 logs
         self.lock = Lock()
         
         # Statistics
@@ -47,9 +47,9 @@ class Dashboard:
     def _setup_layout(self):
         """Setup compact dashboard layout (fits in half screen)."""
         self.layout.split_column(
-            Layout(name="header", size=3),
-            Layout(name="main", size=20),
-            Layout(name="footer", size=8)
+            Layout(name="header", size=2),
+            Layout(name="main", size=14),
+            Layout(name="footer", size=6)
         )
 
         self.layout["main"].split_row(
@@ -58,12 +58,12 @@ class Dashboard:
         )
         
         self.layout["left"].split_column(
-            Layout(name="stats", size=8),
+            Layout(name="stats", size=6),
             Layout(name="active")
         )
         
         self.layout["right"].split_column(
-            Layout(name="queued", size=8),
+            Layout(name="queued", size=6),
             Layout(name="pr_status")
         )
         
@@ -74,9 +74,10 @@ class Dashboard:
         self.live = Live(
             self.layout,
             console=self.console,
-            refresh_per_second=1,  # Smooth updates without bounce
+            refresh_per_second=2,  # Smooth updates, no bounce
             screen=False,
-            vertical_overflow="visible"
+            vertical_overflow="visible",
+            transient=False  # No bouncing on updates
         )
         self.live.start()
 
@@ -212,17 +213,15 @@ class Dashboard:
     def _create_header(self) -> Panel:
         """Create the header panel with title and time."""
         header_text = Text()
-        header_text.append("🤖 ", style="bold cyan")
-        header_text.append("OrchestratorAI", style="bold cyan")
-        header_text.append(" - ", style="dim")
-        header_text.append("Autonomous Development Pipeline", style="bold white")
+        header_text.append("🤖 OrchestratorAI", style="bold cyan")
         header_text.append(" | ", style="dim")
-        header_text.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), style="yellow")
+        header_text.append(datetime.now().strftime("%H:%M:%S"), style="yellow")
 
         return Panel(
             Align.center(header_text),
-            box=box.DOUBLE,
-            style="cyan"
+            box=box.ROUNDED,
+            style="cyan",
+            padding=(0, 0)
         )
     
     def _create_queued_panel(self) -> Panel:

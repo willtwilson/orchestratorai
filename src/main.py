@@ -243,36 +243,41 @@ def _list_issues():
     
     console.print("\n[bold cyan]📋 AI-Ready Issues[/bold cyan]\n")
     
-    github = GitHubClient(
-        token=os.getenv("GITHUB_TOKEN"),
-        repo=os.getenv("GITHUB_REPO")
-    )
-    
-    issues = github.get_ai_ready_issues()
-    
-    if not issues:
-        console.print("[yellow]No AI-ready issues found.[/yellow]")
-        console.print("[dim]Add the 'status:ai-ready' label to issues to process them.[/dim]")
-        return
-    
-    from rich.table import Table
-    from rich import box
-    
-    table = Table(box=box.ROUNDED, show_header=True)
-    table.add_column("#", style="cyan bold", width=6)
-    table.add_column("Title", style="white")
-    table.add_column("Labels", style="yellow", width=30)
-    
-    for issue in issues:
-        labels = ", ".join([label["name"] for label in issue.get("labels", [])])
-        table.add_row(
-            f"#{issue['number']}",
-            issue['title'][:50] + ("..." if len(issue['title']) > 50 else ""),
-            labels[:27] + ("..." if len(labels) > 27 else "")
+    try:
+        github = GitHubClient(
+            token=os.getenv("GITHUB_TOKEN"),
+            repo=os.getenv("GITHUB_REPO")
         )
-    
-    console.print(table)
-    console.print(f"\n[green]Total: {len(issues)} issues[/green]")
+        
+        issues = github.get_ai_ready_issues()
+        
+        if not issues:
+            console.print("[yellow]No AI-ready issues found.[/yellow]")
+            console.print("[dim]Add the 'status:ai-ready' label to issues to process them.[/dim]")
+            return
+        
+        from rich.table import Table
+        from rich import box
+        
+        table = Table(box=box.ROUNDED, show_header=True)
+        table.add_column("#", style="cyan bold", width=6)
+        table.add_column("Title", style="white")
+        table.add_column("Labels", style="yellow", width=30)
+        
+        for issue in issues:
+            labels = ", ".join([label["name"] for label in issue.get("labels", [])])
+            table.add_row(
+                f"#{issue['number']}",
+                issue['title'][:50] + ("..." if len(issue['title']) > 50 else ""),
+                labels[:27] + ("..." if len(labels) > 27 else "")
+            )
+        
+        console.print(table)
+        console.print(f"\n[green]Total: {len(issues)} issues[/green]")
+    except Exception as e:
+        console.print(f"[red]Error listing issues: {e}[/red]")
+        import traceback
+        traceback.print_exc()
 
 
 def _monitor_pr(pr_number: int):
