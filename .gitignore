@@ -153,7 +153,12 @@ data/.copilot_prompt.txt
 
 # Temporary prompt files
 .copilot_prompt.txt
+.claude_prompt.txt
 *_prompt.txt
+**/*_prompt.txt
+
+# Backup directories
+data/backups/
 
 # Environment (keep .env.example, ignore actual .env)
 .env

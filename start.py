@@ -57,16 +57,20 @@ def check_cli_availability():
 
 def main():
     """Main entry point with CLI detection."""
-    print("🤖 OrchestratorAI - Autonomous Development Pipeline")
-    print("=" * 60)
+    # Import rich for better formatting
+    from rich.console import Console
+    console = Console()
+    
+    console.print("\n[bold cyan]🤖 OrchestratorAI - Interactive Mode[/bold cyan]")
+    console.print("=" * 60)
     
     # Check CLI availability
-    print("\n[STARTUP] Checking CLI tool availability...")
+    console.print("\n[yellow][STARTUP] Checking AI agent availability...[/yellow]")
     tools = check_cli_availability()
     
-    print(f"\n  Claude CLI:          {'✅ Available' if tools['claude'] else '❌ Not found'}")
-    print(f"  Copilot CLI:         {'✅ Available' if tools['copilot'] else '❌ Not found'}")
-    print(f"  GitHub Copilot CLI:  {'✅ Available' if tools['gh_copilot'] else '❌ Not found'}")
+    console.print(f"\n  Claude CLI:          {'[green]✅ Available[/green]' if tools['claude'] else '[red]❌ Not found[/red]'}")
+    console.print(f"  Copilot CLI:         {'[green]✅ Available[/green]' if tools['copilot'] else '[red]❌ Not found[/red]'}")
+    console.print(f"  GitHub Copilot CLI:  {'[green]✅ Available[/green]' if tools['gh_copilot'] else '[red]❌ Not found[/red]'}")
     
     # Determine runtime configuration
     use_claude_cli = tools["claude"]
@@ -78,36 +82,42 @@ def main():
     
     if env_claude == "false":
         use_claude_cli = False
-        print("\n  ⚠️  Claude CLI disabled via .env (USE_CLAUDE_CLI=false)")
+        console.print("\n  [yellow]⚠️  Claude CLI disabled via .env (USE_CLAUDE_CLI=false)[/yellow]")
     if env_copilot == "false":
         use_copilot_cli = False
-        print("  ⚠️  Copilot CLI disabled via .env (USE_COPILOT_CLI=false)")
+        console.print("  [yellow]⚠️  Copilot CLI disabled via .env (USE_COPILOT_CLI=false)[/yellow]")
     
     # Set runtime environment variables
     os.environ["USE_CLAUDE_CLI"] = "true" if use_claude_cli else "false"
     os.environ["USE_COPILOT_CLI"] = "true" if use_copilot_cli else "false"
-    os.environ["USE_CLAUDE_API"] = "false"  # Always disable API unless explicitly enabled
+    os.environ["USE_CLAUDE_API"] = os.getenv("USE_CLAUDE_API", "false")  # Respect .env setting
     
-    print("\n[RUNTIME CONFIG]")
-    print(f"  Claude CLI:   {'✅ Enabled' if use_claude_cli else '❌ Disabled'}")
-    print(f"  Copilot CLI:  {'✅ Enabled' if use_copilot_cli else '❌ Disabled'}")
-    print(f"  Claude API:   ❌ Disabled (use only in emergencies)")
+    console.print("\n[cyan][RUNTIME CONFIG][/cyan]")
+    console.print(f"  Claude CLI:   {'[green]✅ Enabled[/green]' if use_claude_cli else '[red]❌ Disabled[/red]'}")
+    console.print(f"  Copilot CLI:  {'[green]✅ Enabled[/green]' if use_copilot_cli else '[red]❌ Disabled[/red]'}")
+    
+    api_enabled = os.getenv("USE_CLAUDE_API", "false").lower() == "true"
+    if api_enabled:
+        console.print(f"  Claude API:   [red]⚠️  Enabled (uses API credits!)[/red]")
+    else:
+        console.print(f"  Claude API:   [green]❌ Disabled (no API credits consumed)[/green]")
     
     # Warning if neither CLI is available
-    if not use_claude_cli and not use_copilot_cli:
-        print("\n⚠️  WARNING: No AI CLI tools available!")
-        print("   The orchestrator will use fallback (simple) code generation.")
-        print("   Install Claude or Copilot CLI for AI-powered generation:")
-        print("   - Claude CLI: npm install -g @anthropic-ai/claude-cli")
-        print("   - Copilot CLI: gh extension install github/gh-copilot")
+    if not use_claude_cli and not use_copilot_cli and not api_enabled:
+        console.print("\n[red]⚠️  WARNING: No AI agents available![/red]")
+        console.print("   [yellow]The orchestrator will use fallback (simple template) generation.[/yellow]")
+        console.print("   [yellow]Install an AI agent for better code generation:[/yellow]")
+        console.print("     • [cyan]Claude CLI:[/cyan] npm install -g @anthropic-ai/claude-cli")
+        console.print("     • [cyan]Copilot CLI:[/cyan] gh extension install github/gh-copilot")
+        console.print("     • [cyan]Or enable Claude API[/cyan] in settings (uses API credits)")
         
-        response = input("\nContinue anyway? [y/N]: ")
-        if response.lower() not in ["y", "yes"]:
-            print("\nExiting...")
+        from rich.prompt import Confirm
+        if not Confirm.ask("\n[yellow]Continue with simple template generation?[/yellow]", default=False):
+            console.print("\n[dim]Exiting...[/dim]")
             sys.exit(0)
     
-    print("\n" + "=" * 60)
-    print("Starting OrchestratorAI...\n")
+    console.print("\n" + "=" * 60)
+    console.print("[green]Launching interactive menu...[/green]\n")
     
     # Import and run the main orchestrator
     from src.main import main as orchestrator_main
