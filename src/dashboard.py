@@ -31,7 +31,7 @@ class Dashboard:
         self.completed_issues = {}
         self.pr_statuses = {}  # PR number -> review/merge status
         self.logs = []
-        self.max_logs = 6  # Compact: show only last 6 logs
+        self.max_logs = 4  # Compact: show only last 4 logs
         self.lock = Lock()
         
         # Statistics
@@ -48,8 +48,8 @@ class Dashboard:
         """Setup compact dashboard layout (fits in half screen)."""
         self.layout.split_column(
             Layout(name="header", size=3),
-            Layout(name="main", size=20),
-            Layout(name="footer", size=8)
+            Layout(name="main", size=14),
+            Layout(name="footer", size=6)
         )
 
         self.layout["main"].split_row(
@@ -58,12 +58,12 @@ class Dashboard:
         )
         
         self.layout["left"].split_column(
-            Layout(name="stats", size=8),
+            Layout(name="stats", size=6),
             Layout(name="active")
         )
         
         self.layout["right"].split_column(
-            Layout(name="queued", size=8),
+            Layout(name="queued", size=6),
             Layout(name="pr_status")
         )
         
@@ -74,9 +74,9 @@ class Dashboard:
         self.live = Live(
             self.layout,
             console=self.console,
-            refresh_per_second=1,  # Smooth updates without bounce
+            refresh_per_second=2,  # Faster refresh to prevent bounce
             screen=False,
-            vertical_overflow="visible"
+            vertical_overflow="crop"  # Crop instead of scroll
         )
         self.live.start()
 
