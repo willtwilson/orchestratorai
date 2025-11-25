@@ -74,7 +74,7 @@ class Dashboard:
         self.live = Live(
             self.layout,
             console=self.console,
-            refresh_per_second=2,  # Slower refresh to prevent bounce
+            refresh_per_second=2,  # Faster refresh to prevent bounce
             screen=False,
             vertical_overflow="crop"  # Crop instead of scroll
         )
