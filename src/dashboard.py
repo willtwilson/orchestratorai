@@ -47,11 +47,7 @@ class Dashboard:
     def _setup_layout(self):
         """Setup compact dashboard layout (fits in half screen)."""
         self.layout.split_column(
-<<<<<<< HEAD
             Layout(name="header", size=2),
-=======
-            Layout(name="header", size=3),
->>>>>>> master
             Layout(name="main", size=14),
             Layout(name="footer", size=6)
         )

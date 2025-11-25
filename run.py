@@ -11,6 +11,12 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Fix Windows console encoding issues
+if sys.platform == "win32":
+    import codecs
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
+
 
 def check_cli_tool(command: str, install_hint: str = None) -> tuple[bool, str]:
     """Check if a CLI tool is available.
